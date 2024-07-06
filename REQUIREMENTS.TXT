@@ -1,7 +1,11 @@
+
+### requirements.txt
+
+plaintext
 pandas
 numpy
-scikit-learn
 matplotlib
 seaborn
-streamlit
-folium
+scikit-learn
+lime
+gdown
