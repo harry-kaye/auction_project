@@ -1,0 +1,29 @@
+Overview
+The goal is to predict auction sale prices for heavy machinery using historical auction data. To achieve this, we'll follow these steps:
+
+Exploratory Data Analysis (EDA):
+
+Understand the structure of the data.
+Visualize and analyze key features.
+Data Cleaning and Preprocessing:
+
+Handle missing values.
+Convert categorical variables to numerical values.
+Drop non-numeric columns.
+Feature Engineering:
+
+Create new features from existing data.
+Select the most relevant features for the model.
+Model Training and Validation:
+
+Split the data into training and validation sets.
+Train a RandomForestRegressor model.
+Tune hyperparameters to improve model performance.
+Evaluate the model using RMSE.
+Prediction and Submission:
+
+Use the trained model to predict prices on the validation set.
+Generate a CSV file with predictions for submission.
+Analyze Feature Importance:
+
+Determine which features contribute the most to the model’s performance.
