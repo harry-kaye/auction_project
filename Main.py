@@ -52,14 +52,38 @@ dtype_spec = {13: str, 39: str, 40: str, 41: str}
 train_df = pd.read_csv('train.csv', dtype=dtype_spec, low_memory=False)
 valid_df = pd.read_csv('valid.csv', dtype=dtype_spec, low_memory=False)
 
-# Add SalesID to the list of columns to ensure it's loaded
-if 'SalesID' not in valid_df.columns:
-    valid_df['SalesID'] = range(len(valid_df))
+# Drop columns with more than 25% missing values
+threshold = 0.4
+train_df = train_df.loc[:, train_df.isnull().mean() < threshold]
+valid_df = valid_df.loc[:, valid_df.isnull().mean() < threshold]
+
+# Load the 'MachineHoursCurrentMeter' column from the CSV files
+train_machine_hours = pd.read_csv('train.csv', usecols=['MachineHoursCurrentMeter'])
+valid_machine_hours = pd.read_csv('valid.csv', usecols=['MachineHoursCurrentMeter'])
+
+# Add 'MachineHoursCurrentMeter' column to the DataFrames if it is missing
+if 'MachineHoursCurrentMeter' not in train_df.columns:
+    train_df['MachineHoursCurrentMeter'] = train_machine_hours['MachineHoursCurrentMeter']
+
+if 'MachineHoursCurrentMeter' not in valid_df.columns:
+    valid_df['MachineHoursCurrentMeter'] = valid_machine_hours['MachineHoursCurrentMeter']
+
+# Verify the changes
+print("Train DataFrame columns:", train_df.columns)
+print("Valid DataFrame columns:", valid_df.columns)
+
+# Save the DataFrames if necessary
+#train_df.to_csv('train_with_MachineHoursCurrentMeter.csv', index=False)
+#valid_df.to_csv('valid_with_MachineHoursCurrentMeter.csv', index=False)
 
 # Display basic information about the training data
 print(train_df.info())
 print(train_df.describe())
 print(train_df.head())
+
+# Add SalesID to the list of columns to ensure it's loaded
+if 'SalesID' not in valid_df.columns:
+    valid_df['SalesID'] = range(len(valid_df))
 
 # Visualize the distribution of the target variable (SalePrice)
 plt.figure(figsize=(10, 6))
@@ -116,7 +140,7 @@ X_train_normalized = (X_train - X_train.mean()) / X_train.std()
 X_valid_normalized = (X_valid - X_train.mean()) / X_train.std()
 
 # Initialize and train the RandomForestRegressor
-rf = RandomForestRegressor(n_estimators=50, random_state=42)  # Reduced number of estimators
+rf = RandomForestRegressor(n_estimators=100, random_state=42)  # Reduced number of estimators
 
 start_time = time.time()
 rf.fit(X_train, y_train)
@@ -140,7 +164,9 @@ numeric_cols = valid_df.select_dtypes(include=[np.number]).columns
 non_numeric_cols = valid_df.select_dtypes(exclude=[np.number]).columns
 
 valid_df[numeric_cols] = valid_df[numeric_cols].fillna(valid_df[numeric_cols].median())
-valid_df[non_numeric_cols] = valid_df[non_numeric_cols].fillna(valid_df[non_numeric_cols].mode().iloc[0])
+
+if not non_numeric_cols.empty:
+    valid_df[non_numeric_cols] = valid_df[non_numeric_cols].fillna(valid_df[non_numeric_cols].mode().iloc[0])
 
 # Generate predictions for the validation set
 valid_preds = rf.predict(valid_df[X_train.columns])
@@ -189,39 +215,6 @@ valid_rmse_reduced = np.sqrt(mean_squared_error(y_valid, valid_preds_reduced))
 
 print(f'Validation RMSE after dropping least important features: {valid_rmse_reduced}')
 
-# Ensure all values are within valid ranges for LIME
-i = 0  # Index of the instance to explain
-valid_instance = X_valid_reduced.iloc[i].values
-valid_instance = np.nan_to_num(valid_instance, nan=0.0, posinf=0.0, neginf=0.0)
-
-# Custom discretizer for LIME
-class CustomDiscretizer(QuartileDiscretizer):
-    def __init__(self, data, feature_names):
-        super().__init__(data, data, feature_names=feature_names, labels=False)
-
-custom_discretizer = CustomDiscretizer(X_train_reduced.values, X_train_reduced.columns)
-
-# LIME for Model Interpretation using the custom discretizer
-explainer = lime.lime_tabular.LimeTabularExplainer(X_train_reduced.values,
-                                                   feature_names=X_train_reduced.columns,
-                                                   class_names=['SalePrice'],
-                                                   verbose=True,
-                                                   mode='regression',
-                                                   discretizer=custom_discretizer)
-
-# Explain a single prediction
-exp = explainer.explain_instance(valid_instance, rf_reduced.predict, num_features=10)
-
-# Display LIME explanation as a plot and in text form
-exp.as_pyplot_figure()
-plt.savefig('lime_explanation.png')
-plt.close()
-
-lime_exp_table = exp.as_list()
-lime_exp_df = pd.DataFrame(lime_exp_table, columns=['Feature', 'Importance'])
-print(lime_exp_df)
-lime_exp_df.to_csv('lime_explanation.csv', index=False)
-
 # Hyperparameter Tuning with GridSearchCV
 param_grid = {
     'n_estimators': [50, 100],
@@ -258,6 +251,12 @@ best_valid_rmse = np.sqrt(mean_squared_error(y_valid, best_valid_preds))
 
 print(f'Best Training RMSE: {best_train_rmse}')
 print(f'Best Validation RMSE: {best_valid_rmse}')
+
+best_rf = grid_search.best_estimator_
+predictions = best_rf.predict(X_train_reduced)
+print(f'best_rf: {best_rf}')
+print(f'predictions: {predictions}')
+
 
 # Regularization to Prevent Overfitting
 # Adding regularization parameters like min_samples_split and min_samples_leaf
